@@ -1,0 +1,6 @@
+*.pyc
+main.py
+__pycache__
+.venv
+tools/appsmith/stacks
+config.json
