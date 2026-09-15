@@ -1,6 +1,11 @@
 from pydantic import Field, BaseModel, AwareDatetime, NaiveDatetime
 from uuid import UUID
 
+class Склады(BaseModel):
+    Ref_Key: UUID
+    DeletionMark: bool
+    Description: str
+    # Подразделение_Key: UUID | None
 
 class ТоварыНаСкладах(BaseModel):
     Склад_Key: UUID

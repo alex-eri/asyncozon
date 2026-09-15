@@ -2,7 +2,7 @@ from odata1c import Connection, Manager
 import asyncio
 from typing import Literal, List
 
-from .models import ЗапасыИПотребности, Номенклатура
+from .models import ЗапасыИПотребности, Номенклатура, Склады
 from .db import get_pool
 
 import logging
@@ -38,3 +38,23 @@ async def load_catalogs(config):
                         model.Артикул,
                     )
                     logger.info(f"Inserted {r} rows into catalogs.Номенклатура for {baza['base_url']}")
+
+            async for model in (
+                conn.request().Catalog(Склады).all()
+            ):
+                async with db.acquire() as conn:
+                    r = await conn.execute('''
+                        insert into "Склады" (owner, "Ref_Key", "DeletionMark", "Description") 
+                        values ( $1, $2, $3, $4)
+                        on conflict (owner, "Ref_Key") do update set 
+                        ("DeletionMark", "Description") = (
+                            excluded."DeletionMark", excluded."Description"
+                        )
+                        ;
+                        ''',
+                        key,
+                        model.Ref_Key,
+                        model.DeletionMark,
+                        model.Description,
+                        )
+                                    
