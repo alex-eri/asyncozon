@@ -4,10 +4,25 @@ import datetime
 import pydantic
 import uuid
 from typing import Literal, Union
+import urllib.parse
 
+import json
+from uuid import UUID
+
+
+class JSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, UUID):
+            # if the obj is uuid, we simply return the value of uuid
+            return str(obj)
+        return json.JSONEncoder.default(self, obj)
+
+def dumps(d, *a):
+    print((d, *a))
+    return json.dumps(d, default=str)
 
 class Connection:
-    _session = None
+    session:aiohttp.ClientSession
 
     def __init__(self, base_url, username, password):
         headers = {
@@ -18,10 +33,25 @@ class Connection:
             base_url=f"{base_url}/odata/standard.odata/",
             headers=headers,
             auth=aiohttp.BasicAuth(login=username, password=password),
+            json_serialize=dumps
         )
 
     def get(self, path: str, query: dict):
-        return self.session.get(path, params=query)
+
+        def quote(s,*a):
+            return urllib.parse.quote(s, safe='/$')
+
+        q = urllib.parse.urlencode(query, quote_via=quote)
+        return self.session.get(f'{path}?{q}')
+
+
+    async def patch(self, path: str, data: dict):
+        return await self.session.patch(path, json=data)
+
+
+    async def post(self, path: str, data: dict=None):
+        return await self.session.post(path, json=data)
+
 
     async def __aenter__(self):
         return self
@@ -235,3 +265,17 @@ class Manager:
         assert self.type
         path = f"{self.type}_{self.entity}(Ref_Key=guid'{ref_key}', LineNumber={line_number})"
         return self.__get_data(path)
+
+
+    async def patch(self, ref_key, data):
+        path = f"{self.type}_{self.entity}(guid'{ref_key}')"
+        req = await self.connection.patch(path, data)
+        return await req.json()
+
+    async def post(self, ref_key):
+        path = f"{self.type}_{self.entity}(guid'{ref_key}')/Post"
+        req = await self.connection.post(path)
+        if req.status == 200 and req.content_type == 'application/json':
+            return await req.json()
+        else:
+            pass
