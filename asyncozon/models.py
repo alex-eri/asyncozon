@@ -64,4 +64,22 @@ class ЦеныНоменклатуры(BaseModel):
     Period: NaiveDatetime
     ВидЦены: ВидыЦен
 
+class АналитикаУчетаНоменклатуры(BaseModel):
+    Ref_Key: UUID
+    Номенклатура: Номенклатура
+    Характеристика_Key: UUID
+    МестоХранения: str
+    ТипМестаХранения: str
+    Контрагент_Key: UUID
+    Партнер_Key: UUID
+    Подразделение_Key: UUID
+    СкладскаяТерритория_Key: UUID
+
+
+class СтоимостьТоваров(BaseModel):
+    Period: NaiveDatetime
+    РазделУчета: str
+    Стоимость: float
+    АналитикаУчетаНоменклатуры: АналитикаУчетаНоменклатуры
+
 
