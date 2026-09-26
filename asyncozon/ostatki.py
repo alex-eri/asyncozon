@@ -139,7 +139,7 @@ async def upload_balance(config):
         where kp.k > 0
         """)
 
-    print(bases)
+    
     for left, right, ware in bases:
         print((left, right, ware))
 
@@ -149,12 +149,13 @@ async def upload_balance(config):
 SELECT  rn."Ref_Key",
  rn."Code", rn.Артикул, rn."Description", 
  TRUNC( (((z.ВНаличии - z.РезервироватьНаСкладе - z.РезервироватьПоМереПоступления - z.ЗаблокированоВНаличии )*k.k + k.b) / k.r)::numeric ,0)* k.r  as КЗаказу,
- z.ВНаличии, z.РезервироватьНаСкладе, k.price as Цена
+ z.ВНаличии, z.РезервироватьНаСкладе, COALESCE(st.Стоимость, 1) as Цена
 FROM outstocking.ЗапасыИПотребности z
 join catalogs.Номенклатура ln on ln."Ref_Key" = z."Номенклатура_Key" AND ln.owner = z.owner
 join outstocking.СопоставлениеНоменклатуры nn on ln.id = nn.left_key
 join catalogs.Номенклатура rn on rn.id = nn.right_key
 join outstocking.КоэфицентыПередачи k on nn.id = k.СопоставлениеНоменклатуры_id
+left join outstocking.СтоимостьТоваров st on st.owner = ln.owner and z.Склад = st."СкладскаяТерритория_Key" and st."Номенклатура_Key" = ln."Ref_Key"
 
 WHERE $1 = z.owner and $2 = z.Склад and rn.owner = $3
 ;
@@ -164,14 +165,12 @@ WHERE $1 = z.owner and $2 = z.Склад and rn.owner = $3
                 right,
             )
 
-        print(goods)
         baza = config["базы"][str(right)]
-        print(baza)
 
-
-        now = datetime.datetime.now().isoformat(timespec='seconds')
-        tomorow = (datetime.datetime.now()+datetime.timedelta(hours=2)).isoformat(timespec='seconds')
-
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        tomorow = (datetime.datetime.now() + datetime.timedelta(hours=2)).isoformat(
+            timespec="seconds"
+        )
 
         async with Connection(**baza) as odata:
             zakaz = await anext(
@@ -182,14 +181,12 @@ WHERE $1 = z.owner and $2 = z.Склад and rn.owner = $3
             )
 
 
-        json.dump(zakaz, open('zakaz.tmp','w'), indent=2)
-        
         ТоварыДля1С = []
 
-        n=1
+        n = 1
 
         for t in goods:
-            Цена = float(t['Цена'])
+            Цена = float(t["Цена"])
             o = False
             k = t["КЗаказу"]
             total = Цена * k
@@ -214,34 +211,43 @@ WHERE $1 = z.owner and $2 = z.Склад and rn.owner = $3
                     "СуммаСНДС": total,
                     "Отменено": o,
                     "СтавкаНДС_Key": "0879466a-d4cf-11f0-90af-cee641da0f98",
-                    "Склад_Key": zakaz['Склад_Key']
+                    "Склад_Key": zakaz["Склад_Key"],
                 }
             )
-            n+=1
+            n += 1
 
-
-        СуммаДокумента = functools.reduce(lambda y,x: y+x['Сумма'], ТоварыДля1С, initial=0)
+        СуммаДокумента = functools.reduce(
+            lambda y, x: y + x["Сумма"], ТоварыДля1С, initial=0
+        )
 
         async with Connection(**baza) as odata:
 
-            zakaz2 = await odata.request().Document("ЗаказПоставщику").patch(
-                zakaz["Ref_Key"], {
-                    "Posted": True,
-                    "Date": now,
-                    "ДатаПоступления": tomorow,
-                    "Товары": ТоварыДля1С,
-                    "СуммаДокумента":СуммаДокумента,
-                    'DeletionMark': False,
-                    "Согласован": True,
-                }
+            zakaz2 = (
+                await odata.request()
+                .Document("ЗаказПоставщику")
+                .patch(
+                    zakaz["Ref_Key"],
+                    {
+                        "Posted": True,
+                        "Date": now,
+                        "ДатаСогласования": now,
+                        "ДатаПоступления": tomorow,
+                        "ДатаПервогоПоступления": tomorow,
+                        "ДатаОтгрузки": tomorow,
+                        "Товары": ТоварыДля1С,
+                        "СуммаДокумента": СуммаДокумента,
+                        "DeletionMark": False,
+                        "Согласован": True,
+                    },
+                )
             )
-
-        json.dump(zakaz2, open('zakaz2.tmp','w'), indent=2)
 
 
         async with Connection(**baza) as odata:
 
-            zakaz2 = await odata.request().Document("ЗаказПоставщику").post(zakaz["Ref_Key"])
+            zakaz2 = (
+                await odata.request().Document("ЗаказПоставщику").post(zakaz["Ref_Key"])
+            )
 
         # async with Connection(**baza) as odata:
         #     zakaz = await odata.request().Document('ЗаказПоставщику').get(uuid.UUID('8b8700163e88a74c11f1ab79c1a91d6e'))

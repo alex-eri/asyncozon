@@ -125,8 +125,9 @@ class Manager:
 
             recurse(self.returntype)
 
-    def filter(self, f):
-        self.query["$filter"] = f
+    def filter(self, f=None):
+        if isinstance(f, str):
+            self.query["$filter"] = f
         return self
 
     def select(self, *fields: str):
