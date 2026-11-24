@@ -222,8 +222,10 @@ class Manager:
                 if isinstance(data.get("value"), list):
                     for r in data["value"]:
                         yield r
-                else:
+                elif data.get("value"):
                     yield data["value"]
+                else:
+                    yield data
         else:
             message = await req.json()
             print(path)
